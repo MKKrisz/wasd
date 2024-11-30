@@ -1,6 +1,9 @@
 [package]
-name = "wallpaperd"
+name = "wasd"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+chrono = { version = "0.4.38", features = ["serde"]}
+serde-roxmltree = "0.8.3"
+serde = { version = "1.0", features = ["derive"]}
