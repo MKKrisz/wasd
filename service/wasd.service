@@ -1,0 +1,12 @@
+[Unit]
+Description=Wallpaper alternating slideshow daemon
+Requires=graphical.target
+After=graphical.target
+
+[Service]
+Type=simple
+ExecStart=/bin/wasd
+
+[Install]
+WantedBy=graphical.target
+
