@@ -2,6 +2,7 @@ use serde_roxmltree;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
+use chrono::NaiveTime;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "lowercase")]
@@ -46,27 +47,65 @@ impl Source {
     }
 
     pub fn activate(this: &mut Self, active_dir: &str) {
-        let symlink_name = Path::new(active_dir).join(&this.name);
         if Self::is_active(this) {return;}
-        std::os::unix::fs::symlink(&this.directory, &symlink_name).expect("uhoh");
+        if let Ok(iter) = std::fs::read_dir(&this.directory) {
+            for res in iter {
+                let file = res.unwrap();
+                let file_name = fs::DirEntry::file_name(&file);
+                let link_name = Path::new(active_dir).join(this.name.clone() + "_" + &file_name.into_string().unwrap());
+                match std::os::unix::fs::symlink(file.path(), &link_name) {
+                    Err(e) => {println!("Could not create symlink: {}", e);},
+                    _ => {}
+                };
+            }
+        }
+
         this.active = true;
         println!("Activated {}", &this.name);
     }
 
     pub fn deactivate(this: &mut Self, active_dir: &str) {
-        let symlink_name = Path::new(active_dir).join(&this.name);
         if !Self::is_active(this) {return;}
-        match std::fs::remove_file(&symlink_name) {
-            Ok(()) => {},
-            Err(e) => {println!("Could not remove symlink! (Maybe doesn't exist): {} {}", e, symlink_name.to_str().unwrap());}
-        };
+
+        if let Ok(iter) = std::fs::read_dir(&this.directory) {
+            for res in iter {
+                let file = res.unwrap();
+                let file_name = fs::DirEntry::file_name(&file);
+                let link_name = Path::new(active_dir).join(this.name.clone() + "_" + &file_name.into_string().unwrap());
+                match std::fs::remove_file(&link_name) {
+                    Err(e) => {println!("Could not remove file: {}", e);},
+                    _ => {}
+                };
+            }
+        }
+
         this.active = false;
         println!("Deactivated {}", &this.name);
     }
 
     pub fn mirror_fs_state(this: &mut Self, active_dir: &str) {
-        let symlink_name = Path::new(active_dir).join(&this.name);
-        this.active = std::fs::exists(&symlink_name).expect("IO error");
+        let mut partially_active = false;
+        let mut fully_active = true;
+        if let Ok(iter) = std::fs::read_dir(&this.directory) {
+            for res in iter {
+                let file = res.unwrap();
+                let file_name = fs::DirEntry::file_name(&file);
+                let link_name = Path::new(active_dir).join(this.name.clone() + "_" + &file_name.into_string().unwrap());
+                let linked = std::fs::exists(&link_name).unwrap();
+                if linked {
+                    partially_active = true;
+                }
+                if !linked {
+                    fully_active = false;
+                }
+            }
+        }
+        if partially_active && !fully_active {
+            println!("Activating partially active source, ignore warnings till \"done\"");
+            Source::activate(this, active_dir);
+            println!("done");
+        }
+        this.active = partially_active;
     }
 }
 
@@ -83,4 +122,16 @@ pub struct Timestamp {
     #[serde(rename = "min")]
     #[serde(default)]
     pub minute: u8,
+}
+
+impl Timestamp {
+    pub fn between(start: &Self, end: &Self, t: &chrono::NaiveTime) -> bool {
+        let start = NaiveTime::from_hms_opt(start.hour.into(), start.minute.into(), 0).unwrap();
+        let end = NaiveTime::from_hms_opt(end.hour.into(), end.minute.into(), 0).unwrap();
+
+        if (end - start) < chrono::TimeDelta::zero() {
+            return !(end <= *t && t < &start)
+        }
+        start <= *t && t < &end
+    }
 }
