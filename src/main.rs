@@ -15,6 +15,7 @@ use chrono::Local;
 
 use crate::config::Config;
 use crate::config::Source;
+use crate::config::Timestamp;
 
 fn main() {
     if env::consts::OS == "windows" {
@@ -36,6 +37,7 @@ fn main() {
         let config_mod_time = fs::metadata(&config_file_path).unwrap().modified().unwrap();
         if config_last_modified != config_mod_time {
             config = config::Config::new(&config_file_path);
+            Config::mirror_fs_state(&mut config);
             config_last_modified = config_mod_time;
             println!("Config changed!");
         }
@@ -44,10 +46,7 @@ fn main() {
         for src in &mut config.source {
             let mut wanted_state = false;
             for interval in &src.interval {
-                let start = NaiveTime::from_hms_opt(interval.start.hour.into(), interval.start.minute.into(), 0).unwrap();
-                let end = NaiveTime::from_hms_opt(interval.end.hour.into(), interval.end.minute.into(), 0).unwrap();
-
-                if time_now.time() > start && time_now.time() < end{
+                if Timestamp::between(&interval.start, &interval.end, &time_now.time()){
                     wanted_state = true;
                 }
             }
