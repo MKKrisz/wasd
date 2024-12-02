@@ -29,9 +29,9 @@ fn main() {
     let mut config_last_modified = fs::metadata(&config_file_path).unwrap().modified().unwrap();
     let mut config = Config::new(&config_file_path);
 
-    let mut last_check_time = chrono::offset::Local::now();
     let mut time_now: DateTime<Local>;
-
+    
+    Config::mirror_fs_state(&mut config);
     loop {
         let config_mod_time = fs::metadata(&config_file_path).unwrap().modified().unwrap();
         if config_last_modified != config_mod_time {
@@ -41,21 +41,20 @@ fn main() {
         }
         time_now = chrono::offset::Local::now();
         
-        for src in &config.source {
+        for src in &mut config.source {
+            let mut wanted_state = false;
             for interval in &src.interval {
                 let start = NaiveTime::from_hms_opt(interval.start.hour.into(), interval.start.minute.into(), 0).unwrap();
                 let end = NaiveTime::from_hms_opt(interval.end.hour.into(), interval.end.minute.into(), 0).unwrap();
 
-                if time_now.time() > start && last_check_time.time() < start {
-                    Source::activate(src, &config.active_directory.clone().unwrap());
-                }
-                if time_now.time() > end && last_check_time.time() < end {
-                    Source::deactivate(src, &config.active_directory.clone().unwrap());
+                if time_now.time() > start && time_now.time() < end{
+                    wanted_state = true;
                 }
             }
+            if wanted_state {Source::activate(src, &config.active_directory.clone().unwrap());}
+            else {Source::deactivate(src, &config.active_directory.clone().unwrap());}
         }
 
-        last_check_time = time_now;
         std::thread::sleep(std::time::Duration::from_secs(config.update_interval));
     }
 }
