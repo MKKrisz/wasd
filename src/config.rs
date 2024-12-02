@@ -81,5 +81,6 @@ pub struct ActiveInterval {
 pub struct Timestamp {
     pub hour: u8,
     #[serde(rename = "min")]
+    #[serde(default)]
     pub minute: u8,
 }
